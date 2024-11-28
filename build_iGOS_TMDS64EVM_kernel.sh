@@ -24,7 +24,7 @@ fi
 if [ -d "$REPO_NAME" ]; then
     if [ "$CLEAN" = true ]; then
         echo "Cleaning up existing repository $REPO_NAME."
-        rm -rf "$REPO_NAME"
+        sudo rm -rf "$REPO_NAME"
     else
         echo "Repository $REPO_NAME already exists. Skipping clone."
     fi

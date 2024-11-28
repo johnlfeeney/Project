@@ -1,0 +1,7 @@
+build/
+vyos-build/
+vyos-build-container/
+logs/
+drivers/
+tools/
+debian-repos

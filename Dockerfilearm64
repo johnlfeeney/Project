@@ -366,6 +366,8 @@ RUN apt-get update && apt-get install -y \
 # Packages needed for Accel-PPP
 # XXX: please note that this must be installed after nftable dependencies - otherwise
 # APT will remove liblua5.3-dev which breaks the Accel-PPP build
+#JF- This means that if there is a build failure after building netfilter packages it's best
+# to exit the container and then restart the container for any build that includes Accell-PPP end JF
 # With bookworm, updated to libssl3 (Note: https://github.com/accel-ppp/accel-ppp/issues/68)
 RUN apt-get update && apt-get install -y \
       liblua5.3-dev \
@@ -377,6 +379,11 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
       debmake \
       python3-debian
+
+      # Packages for podman
+RUN apt-get update && apt-get install -y \
+      libgpgme-dev \
+      libseccomp-dev
 
 # Packages for jool
 RUN apt-get update && apt-get install -y \

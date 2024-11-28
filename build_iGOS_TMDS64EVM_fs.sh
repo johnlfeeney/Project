@@ -45,69 +45,63 @@ find vyos-build/scripts/package-build-iGOS -type f -name "*.toml" -exec sed -i "
 # Install build_flavor
 cp -rf $ROOTDIR/updates/arm64fs.toml $ROOTDIR/vyos-build/data/build-flavors/arm64fs.toml
 
+#hack new salt-minion key
+curl -fsSL https://packages.broadcom.com/artifactory/api/security/keypair/SaltProjectKey/public | tee $ROOTDIR/vyos-build/data/live-build-config/archives/salt-archive-keyring.key.chroot
+rm -rf $ROOTDIR/vyos-build/data/live-build-config/archives/saltstack.key.chroot
+
+# hack for new salt-minion repository
+cp -rf $ROOTDIR/arm64.toml $ROOTDIR/vyos-build/data/architectures/arm64.toml
 
 #frr build fix need to be fixed up later on it the build process
 export EMAIL="johnlfeeney@gmail.com"
 
-./package-build.py --dir package-build --include telegraf owamp frr strongswan openvpn-otp opennhrp aws-gwlbtun node_exporter podman
+./package-build.py --dir package-build --include ethtool telegraf owamp net-snmp frr frr_exporter strongswan openvpn-otp opennhrp \
+aws-gwlbtun node_exporter podman ddclient dropbear hostap kea keepalived netfilter pam_tacplus pmacct radvd isc-dhcp ndppd \
+hsflowd pyhumps
 
 ./package-build.py --dir package-build-iGOS --include vyos-1x vyatta-bash vyos-user-utils vyatta-biosdevname libvyosconfig \
-vyatta-cfg vyos-http-api-tools vyos-utils ipaddrcheck udp-broadcast-relay hvinfo vyatta-wanloadbalance
+vyatta-cfg vyos-http-api-tools vyos-utils ipaddrcheck udp-broadcast-relay hvinfo vyatta-wanloadbalance \
+libmnl libpam-radius-auth libnss-mapuser
+#libtacplus-map libpam-tacplus libnss-tacplus
 
 
-# copy everything to the build directory
-for a in $(find $ROOTDIR/vyos-build/scripts -type f -name "*.deb" | grep -v -e "-dbgsym_" -e "libnetfilter-conntrack3-dbg"); do
-    echo "Copying package: $a"
-    cp -f $a $ROOTDIR/vyos-build/packages/
-done
+TSK=ti-linux-firmware
+BLT=.filesystem.$TSK.built
+if [ ! -f "$BLT" ]; then
+    echo "=== I: $0: $TSK BEGIN"
 
-# this setion needs some rework to clean up how this ti firmware is pulled.
-rm -rf debian-repos
+    # symlink everything to the build directory
+    for a in $(find $ROOTDIR/vyos-build/scripts -type f -name "*.deb")
+    do
+        case "$a" in
+        *libsnmp-dev_*64.deb)  # Needed for frr (despite -dev_ pattern)
+            ;;
+        *-dev_*|*-dbg_*|*-doc_*|*-dbgsym_*)  # Unwanted general patterns
+            continue
+            ;;
+        *libtac2-bin_*|*libpam-tacplus_1.4.3*)  # Unwanted packages
+            continue
+            ;;
+        */hsflowd.deb|*/sflowovsd.deb)  # Not actually .deb
+            continue
+            ;;
+        esac
+
+        echo "Symlinking package: $a"
+        ln -vrfs $a $ROOTDIR/vyos-build/packages/
+    done
+fi
+
+# this section needs some rework to clean up how this ti firmware is pulled.
+sudo rm -rf debian-repos
 git clone $REPO_URL_TI_DEB
+
 cd debian-repos
 
-DEB_SUITE=bookworm ./run.sh ti-linux-firmware
+sudo DEB_SUITE=bookworm ./run.sh ti-linux-firmware
 cd ${ROOTDIR}
 #find debian-repos/build/bookworm/ti-linux-firmware/ -type f | grep '\.deb$' | xargs -I {} cp {} build/
 cp -rf debian-repos/build/bookworm/ti-linux-firmware/*64*.deb $ROOTDIR/vyos-build/packages/
 # end of section for rework
 
-cd $ROOTDIR/vyos-build
-
-sudo ./build-vyos-image arm64fs --architecture arm64 --build-by "jfeeney@perle.com"
-
-cd $ROOTDIR
-
-# Check ISO file
-LIVE_IMAGE_ISO=vyos-build/build/live-image-arm64.hybrid.iso
-
-if [ ! -e ${LIVE_IMAGE_ISO} ]; then
-  echo "File ${LIVE_IMAGE_ISO} not exists."
-  exit -1
-fi
-
-ISOLOOP=$(losetup --show -f ${LIVE_IMAGE_ISO})
-echo "Mounting iso on loopback: ${ISOLOOP}"
-
-rm -rf build
-mkdir build
-mkdir build/tmp/
-
-mount -o ro ${ISOLOOP} build/tmp/
-
-unsquashfs -d build/fs build/tmp/live/filesystem.squashfs
-
-#rm -rf build/fs/boot/grub
-mkdir build/fs/boot/dtb
-
-cp -R build/fs/usr/lib/linux-image*/ti build/fs/boot/dtb
-
-# Temporary fix for DUID in vyos-1x until a more complete solution is thought about
-cp -Rf $ROOTDIR/updates/vyos-router $ROOTDIR/build/fs/usr/libexec/vyos/init/vyos-router
-# Temporary fix for console support until a more complete solution is thought about
-cp -Rf $ROOTDIR/updates/system_console.py /$ROOTDIR/build/fs/usr/libexec/vyos/conf_mode/system_console.py
-
-cat build/fs/boot/vmlinuz* | gunzip -d > build/fs/boot/Image
-
-umount -d build/tmp/
-
+sudo ./build_iGOS_TMDS64EVM_fs_ext.sh

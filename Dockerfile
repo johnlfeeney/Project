@@ -42,9 +42,9 @@ RUN grep "VERSION_ID" /etc/os-release || (echo 'VERSION_ID="12"' >> /etc/os-rele
 # `docker run --rm --privileged multiarch/qemu-user-static:register --reset`
 LABEL authors="VyOS Maintainers <maintainers@vyos.io>" \
       org.opencontainers.image.authors="VyOS Maintainers <maintainers@vyos.io>" \
-      org.opencontainers.image.url="https://github.com/vyos/vyos-build" \
+      org.opencontainers.image.url="https://github.com/psleng/vyos-build" \
       org.opencontainers.image.documentation="https://docs.vyos.io/en/latest/contributing/build-vyos.html" \
-      org.opencontainers.image.source="https://github.com/vyos/vyos-build" \
+      org.opencontainers.image.source="https://github.com/psleng/vyos-build" \
       org.opencontainers.image.vendor="Sentrium S.L." \
       org.opencontainers.image.licenses="GNU" \
       org.opencontainers.image.title="vyos-build" \
@@ -154,7 +154,7 @@ RUN eval $(opam env --root=/opt/opam --set-root) && opam install -y \
 
 # Build VyConf which is required to build libvyosconfig
 RUN eval $(opam env --root=/opt/opam --set-root) && \
-    opam pin add vyos1x-config https://github.com/vyos/vyos1x-config.git#d7260e772e39bc6a3a2d76d629567e03bbad16b5 -y
+    opam pin add vyos1x-config https://github.com/psleng/vyos1x-config.git#d7260e772e39bc6a3a2d76d629567e03bbad16b5 -y
 
 # Packages needed for libvyosconfig
 RUN apt-get update && apt-get install -y \
@@ -164,8 +164,8 @@ RUN apt-get update && apt-get install -y \
 
 # Build libvyosconfig
 RUN eval $(opam env --root=/opt/opam --set-root) && \
-    git clone https://github.com/vyos/libvyosconfig.git /tmp/libvyosconfig && \
-    cd /tmp/libvyosconfig && git checkout 3a021a0964882cdd1873de6cf2bb3b4acb9043e0 && \
+    git clone https://github.com/psleng/libvyosconfig.git /tmp/libvyosconfig && \
+    cd /tmp/libvyosconfig && git checkout 9e4f6c1494fcff64ad22503b704dbdd43347b0a6 && \
     dpkg-buildpackage -uc -us -tc -b && \
     dpkg -i /tmp/libvyosconfig0_*_$(dpkg-architecture -qDEB_HOST_ARCH).deb
 
@@ -270,9 +270,10 @@ RUN pip install --break-system-packages \
       quilt \
       whois
 
-# Go required for validators and vyos-xe-guest-utilities
-RUN GO_VERSION_INSTALL="1.21.3" ; \
-    wget -O /tmp/go${GO_VERSION_INSTALL}.linux-amd64.tar.gz https://go.dev/dl/go${GO_VERSION_INSTALL}.linux-$(dpkg-architecture -qDEB_HOST_ARCH).tar.gz ; \
+# Go required for telegraf and prometheus exporters build.
+# NOTE: 1.23.1 does NOT work under qemu.
+RUN GO_VERSION_INSTALL="1.22.8" ; \
+    wget -O /tmp/go${GO_VERSION_INSTALL}.linux-arm64.tar.gz https://go.dev/dl/go${GO_VERSION_INSTALL}.linux-$(dpkg-architecture -qDEB_HOST_ARCH).tar.gz ; \
     tar -C /opt -xzf /tmp/go*.tar.gz && \
     rm /tmp/go*.tar.gz
 RUN echo "export PATH=/opt/go/bin:$PATH" >> /etc/bash.bashrc
@@ -418,6 +419,7 @@ RUN apt-get update && apt-get install -y \
 	kpartx
 	
 # Packages needed for frr - JF
+# DK	libsnmp-dev removed, it  will be installed when net-snmp is installed BEFORE frr is built - order dependency
 # And for building libyan2-dev https://docs.frrouting.org/projects/dev-guide/en/latest/building-frr-for-debian12.html#install-required-packages -JF
 RUN apt-get update && apt-get install -y \
 	chrpath \
@@ -429,7 +431,6 @@ RUN apt-get update && apt-get install -y \
 	libpam-dev \libprotobuf-c-dev \
 	libpython3-dev:native \
 	python3-sphinx:native \
-	libsnmp-dev \
 	protobuf-c-compiler \
 	python3-dev:native \
 	texinfo \
@@ -446,22 +447,14 @@ RUN apt-get update && apt-get install -y \
 	libzmq5 \
 	libzmq3-dev
 
-	
-# Clone the libyang2 repository
-#RUN git clone https://github.com/CESNET/libyang.git /libyang
-# Build and install libyang2
-#WORKDIR /libyang
-#RUN git checkout v2.1.148
-#RUN pipx run apkg build -i && find pkg/pkgs -type f -name *.deb -exec mv -t .. {} +
-
-# Clean up
-#RUN apt-get clean && \
-#    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*	
-# And end of for building libyang2-dev	
+# Packages needed for net-snmp - DK
+RUN apt-get update && apt-get install -y \
+	perl-xs-dev \
+	default-libmysqlclient-dev
 	
 # Environment variables needed - JF
-ENV DEBEMAIL="jfeeney@perle.com"
-ENV EMAIL="jfeeney@perle.com.com"
+ENV DEBEMAIL="psleng@perle.com"
+ENV EMAIL="psleng@perle.com"
 
 # Packages needed for nftables
 RUN apt-get update && apt-get install -y \
@@ -489,5 +482,16 @@ RUN rm -rf /tmp/*
 RUN printf "set mouse=\nset ttymouse=\n" > /etc/vim/vimrc.local
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Install apt pubkey and sources.list.d file for psleng.github.io
+RUN echo "deb [signed-by=/etc/apt/keyrings/psleng.key] https://psleng.github.io bookworm main" >> /etc/apt/sources.list.d/psleng.list
+COPY psleng.key /etc/apt/keyrings/
+
+# PSL: Extend secure_path for sudo
+RUN sudo sed -i 's|Defaults\s\+secure_path=\"\(.*\)\"|Defaults secure_path=\"\1:/opt/go/bin\"|' /etc/sudoers
+
+# PSL: Modify entrypoint.sh to use sudo instead of gosu, since gosu has
+# issues of randomly hanging when run with qemu in a VM.
+RUN sed -i 's/exec gosu/exec sudo -u/' /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
