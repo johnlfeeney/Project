@@ -8,9 +8,10 @@
 
 sudo ./build_iGOS_drivers.sh --repo https://github.com/johnlfeeney
 
-exit
 
 sudo ./buildiGOSti.sh bookworm-am64xx-evm
+
+exit
 
 sudo ./create-sdcard.sh bookworm-am64xx-evm
 
