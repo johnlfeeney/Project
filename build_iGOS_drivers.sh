@@ -56,4 +56,5 @@ cp -rf 60-Perle-pcie-card-nxp9098.rules $ROOTDIR/build/fs/etc/udev/rules.d/60-Pe
 #make -C $ROOTDIR/vyos-build/scripts/package-build/linux-kernel/linux M=$PWD
 #mkdir -p $ROOTDIR/build/fs/lib/firmware/Simcom
 
-cp -rf 60-Perle-usb-modem.rules $ROOTDIR/build/fs/etc/udev/rules.d/60-Perle-usb-modem.rules.rules
+
+#cp -rf 60-Perle-usb-modem.rules $ROOTDIR/build/fs/etc/udev/rules.d/60-Perle-usb-modem.rules.rules

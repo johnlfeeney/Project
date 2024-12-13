@@ -55,11 +55,11 @@ cp -rf $ROOTDIR/arm64.toml $ROOTDIR/vyos-build/data/architectures/arm64.toml
 #frr build fix need to be fixed up later on it the build process
 export EMAIL="johnlfeeney@gmail.com"
 
-./package-build.py --dir package-build --include ethtool telegraf owamp net-snmp frr frr_exporter strongswan openvpn-otp opennhrp \
+./package-build.py --dir package-build --include telegraf owamp net-snmp frr frr_exporter strongswan openvpn-otp opennhrp \
 aws-gwlbtun node_exporter podman ddclient dropbear hostap kea keepalived netfilter pam_tacplus pmacct radvd isc-dhcp ndppd \
 hsflowd pyhumps
 
-./package-build.py --dir package-build-iGOS --include vyos-1x vyatta-bash vyos-user-utils vyatta-biosdevname libvyosconfig \
+./package-build.py --dir package-build-iGOS --include ethtool vyos-1x vyatta-bash vyos-user-utils vyatta-biosdevname libvyosconfig \
 vyatta-cfg vyos-http-api-tools vyos-utils ipaddrcheck udp-broadcast-relay hvinfo vyatta-wanloadbalance \
 libmnl libpam-radius-auth libnss-mapuser
 #libtacplus-map libpam-tacplus libnss-tacplus

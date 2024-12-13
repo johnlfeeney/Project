@@ -42,9 +42,9 @@ RUN grep "VERSION_ID" /etc/os-release || (echo 'VERSION_ID="12"' >> /etc/os-rele
 # `docker run --rm --privileged multiarch/qemu-user-static:register --reset`
 LABEL authors="VyOS Maintainers <maintainers@vyos.io>" \
       org.opencontainers.image.authors="VyOS Maintainers <maintainers@vyos.io>" \
-      org.opencontainers.image.url="https://github.com/psleng/vyos-build" \
+      org.opencontainers.image.url="https://github.com/vyos/vyos-build" \
       org.opencontainers.image.documentation="https://docs.vyos.io/en/latest/contributing/build-vyos.html" \
-      org.opencontainers.image.source="https://github.com/psleng/vyos-build" \
+      org.opencontainers.image.source="https://github.com/vyos/vyos-build" \
       org.opencontainers.image.vendor="Sentrium S.L." \
       org.opencontainers.image.licenses="GNU" \
       org.opencontainers.image.title="vyos-build" \
@@ -62,7 +62,9 @@ RUN apt-get update && apt-get install -y \
 RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && locale-gen
 ENV LANG=en_US.utf8
 
+
 ENV OCAML_VERSION=4.14.2
+RUN echo "export OCAML_VERSION=${OCAML_VERSION}" >> /etc/bash.bashrc
 
 # Base packaged needed to build packages and their package dependencies
 RUN apt-get update && apt-get install -y \
@@ -103,6 +105,7 @@ RUN apt-get update && apt-get install -y \
       python3-flake8 \
       python3-autopep8 \
       python3-tomli \
+      python3-tomli-w \
       yq \
       debootstrap \
       live-build \
@@ -136,7 +139,7 @@ RUN dpkg-reconfigure ca-certificates; \
 # Installing OCAML needed to compile libvyosconfig
 RUN curl https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh \
       --output /tmp/opam_install.sh --retry 10 --retry-delay 5 && \
-    sed -i 's/read BINDIR/BINDIR=""/' /tmp/opam_install.sh && sh /tmp/opam_install.sh && \
+    sed -i 's/read -r BINDIR/BINDIR=""/' /tmp/opam_install.sh && sh /tmp/opam_install.sh && \
     opam init --root=/opt/opam --comp=${OCAML_VERSION} --disable-sandboxing --no-setup
 
 RUN eval $(opam env --root=/opt/opam --set-root) && \
@@ -164,8 +167,8 @@ RUN apt-get update && apt-get install -y \
 
 # Build libvyosconfig
 RUN eval $(opam env --root=/opt/opam --set-root) && \
-    git clone https://github.com/psleng/libvyosconfig.git /tmp/libvyosconfig && \
-    cd /tmp/libvyosconfig && git checkout 9e4f6c1494fcff64ad22503b704dbdd43347b0a6 && \
+    git clone https://github.com/vyos/libvyosconfig.git /tmp/libvyosconfig && \
+    cd /tmp/libvyosconfig && git checkout e4bfbf0147f4242b0999a3305fd9a496b49b2caf && \
     dpkg-buildpackage -uc -us -tc -b && \
     dpkg -i /tmp/libvyosconfig0_*_$(dpkg-architecture -qDEB_HOST_ARCH).deb
 
@@ -272,10 +275,19 @@ RUN pip install --break-system-packages \
 
 # Go required for telegraf and prometheus exporters build.
 # NOTE: 1.23.1 does NOT work under qemu.
-RUN GO_VERSION_INSTALL="1.22.8" ; \
-    wget -O /tmp/go${GO_VERSION_INSTALL}.linux-arm64.tar.gz https://go.dev/dl/go${GO_VERSION_INSTALL}.linux-$(dpkg-architecture -qDEB_HOST_ARCH).tar.gz ; \
-    tar -C /opt -xzf /tmp/go*.tar.gz && \
-    rm /tmp/go*.tar.gz
+#RUN GO_VERSION_INSTALL="1.22.8" ; \
+#wget -O /tmp/go${GO_VERSION_INSTALL}.linux-amd64.tar.gz https://go.dev/dl/go${GO_VERSION_INSTALL}.linux-$(dpkg-architecture -qDEB_HOST_ARCH).tar.gz ; \
+#    tar -C /opt -xzf /tmp/go*.tar.gz && \
+#    rm /tmp/go*.tar.gz
+
+ENV GO_VERSION_INSTALL="1.22.8"
+RUN if [ "$ARCH" = "arm64v8" ]; then \
+        wget -O /tmp/go${GO_VERSION_INSTALL}.linux-arm64.tar.gz https://go.dev/dl/go${GO_VERSION_INSTALL}.linux-$(dpkg-architecture -qDEB_HOST_ARCH).tar.gz ; \
+    else \
+        wget -O /tmp/go${GO_VERSION_INSTALL}.linux-amd64.tar.gz https://go.dev/dl/go${GO_VERSION_INSTALL}.linux-$(dpkg-architecture -qDEB_HOST_ARCH).tar.gz ; \
+    fi && \
+    tar -C /opt -xzf /tmp/go${GO_VERSION_INSTALL}.linux-*.tar.gz && \
+    rm /tmp/go${GO_VERSION_INSTALL}.linux-*.tar.gz
 RUN echo "export PATH=/opt/go/bin:$PATH" >> /etc/bash.bashrc
 
 
@@ -357,6 +369,8 @@ RUN apt-get update && apt-get install -y \
 # Packages needed for Accel-PPP
 # XXX: please note that this must be installed after nftable dependencies - otherwise
 # APT will remove liblua5.3-dev which breaks the Accel-PPP build
+#JF- This means that if there is a build failure after building netfilter packages it's best
+# to exit the container and then restart the container for any build that includes Accell-PPP end JF
 # With bookworm, updated to libssl3 (Note: https://github.com/accel-ppp/accel-ppp/issues/68)
 RUN apt-get update && apt-get install -y \
       liblua5.3-dev \
@@ -369,10 +383,16 @@ RUN apt-get update && apt-get install -y \
       debmake \
       python3-debian
 
+      # Packages for podman
+RUN apt-get update && apt-get install -y \
+      libgpgme-dev \
+      libseccomp-dev
+
 # Packages for jool
 RUN apt-get update && apt-get install -y \
       libnl-genl-3-dev \
       libxtables-dev
+
 # Packages needed for OWAMP - JF
 RUN apt-get update && apt-get install -y \
 	dh-apparmor \
@@ -417,7 +437,7 @@ RUN apt-get update && apt-get install -y \
 # Packages needed for failed make of Vyos - JF
 RUN apt-get update && apt-get install -y \
 	kpartx
-	
+
 # Packages needed for frr - JF
 # DK	libsnmp-dev removed, it  will be installed when net-snmp is installed BEFORE frr is built - order dependency
 # And for building libyan2-dev https://docs.frrouting.org/projects/dev-guide/en/latest/building-frr-for-debian12.html#install-required-packages -JF
@@ -428,7 +448,8 @@ RUN apt-get update && apt-get install -y \
 	libcap-dev \
 	libjson-c-dev \
 	librtr-dev \
-	libpam-dev \libprotobuf-c-dev \
+	libpam-dev \
+	libprotobuf-c-dev \
 	libpython3-dev:native \
 	python3-sphinx:native \
 	protobuf-c-compiler \
@@ -451,10 +472,31 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
 	perl-xs-dev \
 	default-libmysqlclient-dev
-	
-# Environment variables needed - JF
+
+
+#Packages needed for TI Boot Environment
+RUN apt-get update && apt-get install -y \
+	pigz \
+	expect \
+	pv \
+	binfmtc \
+	binfmt-support \
+	debian-archive-keyring \
+	bdebstrap \
+	wget \
+	swig \
+	python3-pyelftools \
+	python3-cryptography
+
+RUN pip install --break-system-packages \
+	toml-cli \
+	yamllint
+
+      # Environment variables needed - JF
 ENV DEBEMAIL="psleng@perle.com"
+RUN echo "DEBEMAIL=${DEBEMAIL}" >> /etc/bash.bashrc
 ENV EMAIL="psleng@perle.com"
+RUN echo "export EMAIL=${EMAIL}" >> /etc/bash.bashrc
 
 # Packages needed for nftables
 RUN apt-get update && apt-get install -y \

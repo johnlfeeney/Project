@@ -58,20 +58,6 @@ def apply_patches(repo_dir: Path, patch_dir: Path) -> None:
             series.write(patch.name + '\n')
             print(f"I: Applied patch: {patch.name}")
 
-def apply_copy(repo_dir: Path, copy_dir: Path) -> None:
-    """Apply copy from the copy directory to the repository"""
-    if not copy_dir.exists() or not copy_dir.is_dir():
-        print(f"I: Copy directory {copy_dir} does not exist, skipping copy application")
-        return
-
-    for item in copy_dir.rglob('*'):
-        dest = repo_dir / item.relative_to(copy_dir)
-        if item.is_dir():
-            dest.mkdir(parents=True, exist_ok=True)
-        else:
-            shutil.copy2(item, dest)
-            print(f"Copied {item} to {dest}")
-
 
 def prepare_package(repo_dir: Path, install_data: str) -> None:
     """Prepare a package"""
@@ -89,7 +75,7 @@ def prepare_package(repo_dir: Path, install_data: str) -> None:
         raise
 
 
-def build_package(package: dict, dependencies: list, patch_dir: Path, copy_dir: Path) -> None:
+def build_package(package: dict, dependencies: list, patch_dir: Path) -> None:
     """Build a package from the repository
 
     Args:
@@ -114,10 +100,6 @@ def build_package(package: dict, dependencies: list, patch_dir: Path, copy_dir: 
         # Apply patches if any
         if (repo_dir / 'patches'):
             apply_patches(repo_dir, patch_dir)
-
-        # Apply copy file if any
-        if (repo_dir / 'filecopy'):
-            apply_copy(repo_dir, copy_dir)
 
         # Prepare the package if required
         if package.get('prepare_package', False):
@@ -181,9 +163,6 @@ if __name__ == '__main__':
     arg_parser.add_argument('--patch-dir',
                             default='patches',
                             help='Path to the directory containing patches')
-    arg_parser.add_argument('--copy-dir',
-                            default='filecopy',
-                            help='Path to the directory containing files to copy')
     args = arg_parser.parse_args()
 
     # Load package configuration
@@ -192,13 +171,12 @@ if __name__ == '__main__':
 
     packages = config['packages']
     patch_dir = Path(args.patch_dir)
-    copy_dir = Path(args.copy_dir)
 
     for package in packages:
         dependencies = package.get('dependencies', {}).get('packages', [])
 
         # Build the package
-        build_package(package, dependencies, patch_dir, copy_dir)
+        build_package(package, dependencies, patch_dir)
 
         # Clean up build dependency packages after build
         cleanup_build_deps(Path(package['name']))
