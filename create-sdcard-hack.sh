@@ -48,7 +48,7 @@ EXEPATH="$PWD"/"$EXE"
 clear
 
 PARSEPATH=./build/$1
-
+ROOTFSRAWPATH=./build/fs
 cat << EOM
 
 ################################################################################
@@ -212,7 +212,7 @@ cat << EOM
 
 ################################################################################
 EOM
-        untar_progress $TARBALLPATH/rootfs_partition.tar.xz rootfs/
+#        untar_progress $TARBALLPATH/rootfs_partition.tar.xz rootfs/
 
 cat << EOM
 
@@ -269,7 +269,7 @@ echo " "
 DEVICEDRIVENUMBER=
 while true;
 do
-	read -p 'Enter Device Number or 'n' to exit: ' DEVICEDRIVENUMBER
+	read -p 'Enter Device NPARSEPATHumber or 'n' to exit: ' DEVICEDRIVENUMBER
 	echo " "
         if [ "$DEVICEDRIVENUMBER" = 'n' ]; then
                 exit 1
@@ -366,7 +366,7 @@ fi
 
 # Refresh this variable as the device may not be mounted at script instantiation time
 # This will always return one more then needed
-NUM_OF_PARTS=`cat /proc/partitions | grep -v $ROOTDRIVE | grep -c $DEVICEDRIVENAME`
+NUM_OF_PARTS=`cat /proc/parPARSEPATHtitions | grep -v $ROOTDRIVE | grep -c $DEVICEDRIVENAME`
 for ((c=1; c<"$NUM_OF_PARTS"; c++ ))
 do
         SIZE=`cat /proc/partitions | grep -v $ROOTDRIVE | grep '\<'$DEVICEDRIVENAME$P$c'\>'  | awk '{print $3}'`
@@ -691,6 +691,7 @@ sync
 
 BOOTFILEPATH="$PARSEPATH/tisdk*boot.tar.xz"
 ROOTFILEPATH="$PARSEPATH/tisdk*rootfs.tar.xz"
+ROOTFSPATH="$PARSEPATH/tisdk*rootfs/*"
 
 cat << EOM
 ################################################################################
@@ -709,8 +710,18 @@ echo ""
 sync
 
 echo "Copying rootfs System partition"
-untar_progress $ROOTFILEPATH $PATH_TO_SDROOTFS
+#untar_progress $ROOTFILEPATH $PATH_TO_SDROOTFS
 
+# Hack to install like Vyos-1x image install
+rsync -aHAX $ROOTFSRAWPATH/boot $PATH_TO_SDROOTFS
+mksquashfs $ROOTFSRAWPATH $PATH_TO_SDROOTFS/boot/filesystem.squashfs
+install -D $ROOTFSRAWPATH/usr/share/vyos/config.boot.default $PATH_TO_SDROOTFS/boot/rw/opt/vyatta/etc/config/config.boot
+chown -R :vyattacfg $PATH_TO_SDROOTFS/boot/rw/opt/vyatta/etc/config
+chmod 2775 $PATH_TO_SDROOTFS/boot/rw/opt/vyatta/etc/config
+touch $PATH_TO_SDROOTFS/boot/rw/opt/vyatta/etc/config/.vyatta_config
+
+echo "/ union" > "$PATH_TO_SDROOTFS/persistence.conf"
+# end hack
 echo ""
 echo ""
 sync

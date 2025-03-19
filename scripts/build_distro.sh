@@ -30,7 +30,7 @@ bsp_version=$2
 
     cd ${topdir}/build
     rm -rf ${build}/tisdk-debian-${distro}-${bsp_version}-rootfs/
-    cp -r -p fs/ ${build}/tisdk-debian-${distro}-${bsp_version}-rootfs/   
+    cp -r -a fs/ ${build}/tisdk-debian-${distro}-${bsp_version}-rootfs/   
     
     cd ${topdir}/build/${build}
     log "> Cleaning up ${build}"

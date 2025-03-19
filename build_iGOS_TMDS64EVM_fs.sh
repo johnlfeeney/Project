@@ -55,12 +55,12 @@ cp -rf $ROOTDIR/arm64.toml $ROOTDIR/vyos-build/data/architectures/arm64.toml
 #frr build fix need to be fixed up later on it the build process
 export EMAIL="johnlfeeney@gmail.com"
 
-./package-build.py --dir package-build --include telegraf owamp net-snmp frr frr_exporter strongswan openvpn-otp opennhrp \
+./package-build.py --dir package-build --include telegraf owamp net-snmp frr frr_exporter blackbox_exporter strongswan openvpn-otp opennhrp \
 aws-gwlbtun node_exporter podman ddclient dropbear hostap kea keepalived netfilter pam_tacplus pmacct radvd isc-dhcp ndppd \
-hsflowd pyhumps
+hsflowd pyhumps vpp vyos-1x
 
-./package-build.py --dir package-build-iGOS --include ethtool vyos-1x vyatta-bash vyos-user-utils vyatta-biosdevname libvyosconfig \
-vyatta-cfg vyos-http-api-tools vyos-utils ipaddrcheck udp-broadcast-relay hvinfo vyatta-wanloadbalance \
+./package-build.py --dir package-build-iGOS --include ethtool vyatta-bash vyos-user-utils vyatta-biosdevname libvyosconfig \
+vyatta-cfg vyos-http-api-tools vyos-utils ipaddrcheck udp-broadcast-relay hvinfo \
 libmnl libpam-radius-auth libnss-mapuser
 #libtacplus-map libpam-tacplus libnss-tacplus
 
@@ -75,6 +75,10 @@ if [ ! -f "$BLT" ]; then
     do
         case "$a" in
         *libsnmp-dev_*64.deb)  # Needed for frr (despite -dev_ pattern)
+            ;;
+        *vpp-dev_*64.deb) # Needed for vpp  (despite -dev_ pattern)
+            ;;
+        *libvppinfra-dev_*64.deb) # Needed for vpp  (despite -dev_ pattern)
             ;;
         *-dev_*|*-dbg_*|*-doc_*|*-dbgsym_*)  # Unwanted general patterns
             continue
